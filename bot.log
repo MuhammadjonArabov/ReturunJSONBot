@@ -1,7 +1,0 @@
-bot.py:25 #INFO     [2024-10-24 15:49:39,675] - __main__ - Starting bot
-dispatcher.py:493 #INFO     [2024-10-24 15:49:40,234] - aiogram.dispatcher - Start polling
-dispatcher.py:329 #INFO     [2024-10-24 15:49:40,649] - aiogram.dispatcher - Run polling for bot @mytetsfirst_bot id=8110199875 - 'ChatBot'
-dispatcher.py:160 #INFO     [2024-10-24 15:49:52,518] - aiogram.event - Update id=446454386 is handled. Duration 556 ms by bot id=8110199875
-dispatcher.py:439 #WARNING  [2024-10-24 15:50:12,853] - aiogram.dispatcher - Received SIGINT signal
-dispatcher.py:345 #INFO     [2024-10-24 15:50:12,854] - aiogram.dispatcher - Polling stopped for bot @mytetsfirst_bot id=8110199875 - 'ChatBot'
-dispatcher.py:520 #INFO     [2024-10-24 15:50:12,854] - aiogram.dispatcher - Polling stopped
