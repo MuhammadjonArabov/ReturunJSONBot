@@ -1,13 +1,26 @@
-import pdfplumber
-from aiogram import Router, types, F
-from aiogram import Bot
-from docx import Document
-import pandas as pd
+import asyncio
+import logging
+import os
+import sys
 import json
 import re
+import pdfplumber
+import pandas as pd
+from docx import Document
+from aiogram import Bot, Dispatcher, Router, types, F
+from aiogram.client.default import DefaultBotProperties
+from aiogram.enums import ParseMode
+from aiogram.filters import CommandStart
+from dotenv import load_dotenv
+from pandas.io.formats import html
+
+load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 router = Router()
 
+TOKEN = os.getenv("BOT_TOKEN")
 
 def clean_section_title(title):
     cleaned_title = re.sub(r'\.+\s*\d*$', '', title).strip()
@@ -61,7 +74,7 @@ async def extract_text_from_docx(docx_file):
 
     for paragraph in doc.paragraphs:
         line = paragraph.text.strip()
-        if "Mundarija" in line or "Содержание" in line or "Table of Contents" in line or "Оглавление" in line or "Contents":
+        if "Mundarija" in line or "Содержание" in line or "Table of Contents" in line or "Оглавление" in line or "Contents" in line:
             found_index = True
         if found_index and line:
             match = re.match(r'^(\d+(\.\d+)*)(\s+.*)$', line)
@@ -103,6 +116,12 @@ async def extract_text(file, mime_type):
         return await extract_text_from_xlsx(file)
     else:
         raise ValueError("Qo'llab-quvvatlanmaydigan fayl turi")
+
+
+
+@router.message(CommandStart())
+async def command_start_handler(message: types.Message) -> None:
+    await message.answer(f"Hello, {html.bold(message.from_user.full_name)}!")
 
 
 @router.message(F.document)
@@ -148,3 +167,36 @@ async def handle_document_upload(message: types.Message, bot: Bot):
 async def handle_text_message(message: types.Message):
     await message.reply(
         "Iltimos, PDF, DOCX yoki XLSX formatdagi faylni yuboring va faylni JSON formatiga aylantirib beraman.")
+
+
+async def main() -> None:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(filename)s:%(lineno)d #%(levelname)-8s "
+               "[%(asctime)s] - %(name)s - %(message)s",
+        handlers=[
+            logging.FileHandler("bot.log"),
+            logging.StreamHandler(sys.stdout)
+        ]
+    )
+
+    logger.info("Starting bot")
+    bot_token = os.getenv("BOT_TOKEN")
+    if not bot_token:
+        logger.error("Bot tokeni topilmadi. .env faylini tekshiring.")
+        return
+
+    bot: Bot = Bot(token=bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+
+    dp: Dispatcher = Dispatcher()
+    dp.include_router(router)
+
+    await bot.delete_webhook(drop_pending_updates=True)
+    await dp.start_polling(bot)
+
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except (KeyboardInterrupt, SystemExit):
+        logger.info("Bot stopped")
