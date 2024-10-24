@@ -42,7 +42,7 @@ async def extract_contents_from_pdf(pdf_file):
             if text:
                 lines = text.split("\n")
                 for line in lines:
-                    if "Mundarija" in line or "Содержание" in line or "Table of Contents" in line or "Оглавление" in line:
+                    if "Mundarija" in line or "Содержание" in line or "Table of Contents" in line or "Оглавление" in line or "Contents" in line:
                         found_index = True
                     if found_index:
                         match = re.match(r'^(\d+(\.\d+)*)(\s+.*)$', line.strip())
@@ -61,7 +61,7 @@ async def extract_text_from_docx(docx_file):
 
     for paragraph in doc.paragraphs:
         line = paragraph.text.strip()
-        if "Mundarija" in line or "Содержание" in line or "Table of Contents" in line or "Оглавление" in line:
+        if "Mundarija" in line or "Содержание" in line or "Table of Contents" in line or "Оглавление" in line or "Contents" in line:
             found_index = True
         if found_index and line:
             match = re.match(r'^(\d+(\.\d+)*)(\s+.*)$', line)
@@ -82,7 +82,7 @@ async def extract_text_from_xlsx(xlsx_file):
         row_data = row.tolist()
         for cell in row_data:
             if isinstance(cell, str) and (
-                    "Mundarija" in cell or "Содержание" in cell or "Table of Contents" in cell or "Оглавление" in cell):
+                    "Mundarija" in cell or "Содержание" in cell or "Table of Contents" in cell or "Оглавление" in cell or "Contents" in cell):
                 found_index = True
             if found_index and isinstance(cell, str):
                 match = re.match(r'^(\d+(\.\d+)*)(\s+.*)$', cell.strip())
