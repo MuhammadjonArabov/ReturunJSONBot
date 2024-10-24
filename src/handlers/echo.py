@@ -61,7 +61,7 @@ async def extract_text_from_docx(docx_file):
 
     for paragraph in doc.paragraphs:
         line = paragraph.text.strip()
-        if "Mundarija" in line or "Содержание" in line or "Table of Contents" in line or "Оглавление" in line or "Contents" in line:
+        if "Mundarija" in line or "Содержание" in line or "Table of Contents" in line or "Оглавление" in line or "Contents":
             found_index = True
         if found_index and line:
             match = re.match(r'^(\d+(\.\d+)*)(\s+.*)$', line)
