@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import os
-import sys
 import json
 import re
 import pdfplumber
@@ -22,31 +21,51 @@ router = Router()
 
 TOKEN = os.getenv("BOT_TOKEN")
 
+
 def clean_section_title(title):
     cleaned_title = re.sub(r'\.+\s*\d*$', '', title).strip()
     return cleaned_title
 
 
-def add_subsection(data, section_number, section_title):
+def add_subsection(data, section_number, section_title, section_text=""):
     section_levels = section_number.split('.')
 
     if len(section_levels) == 1:
-        data[section_number] = {"title": section_title, "sections": {}}
+        data[section_number] = {
+            "title": section_title,
+            "sections": {},
+            "text": section_text
+        }
     elif len(section_levels) == 2:
         parent_section = section_levels[0]
         if parent_section not in data:
-            data[parent_section] = {"title": f"Bo'lim {parent_section}", "sections": {}}
-        data[parent_section]["sections"][section_number] = {"title": section_title, "subsections": {}}
+            data[parent_section] = {
+                "title": f"Bo'lim {parent_section}",
+                "sections": {}
+            }
+        data[parent_section]["sections"][section_number] = {
+            "title": section_title,
+            "subsections": {},
+            "text": section_text
+        }
     elif len(section_levels) == 3:
         parent_section = section_levels[0] + '.' + section_levels[1]
         if parent_section not in data:
-            data[parent_section] = {"title": f"Bo'lim {parent_section}", "sections": {}}
-        data[parent_section]["sections"][section_number] = {"title": section_title, "subsections": {}}
+            data[parent_section] = {
+                "title": f"Bo'lim {parent_section}",
+                "sections": {}
+            }
+        data[parent_section]["sections"][section_number] = {
+            "title": section_title,
+            "subsections": {},
+            "text": section_text
+        }
 
 
 async def extract_contents_from_pdf(pdf_file):
     extracted_data = {}
     found_index = False
+    section_text = ""
 
     with pdfplumber.open(pdf_file) as pdf:
         for page_num in range(min(15, len(pdf.pages))):
@@ -62,7 +81,11 @@ async def extract_contents_from_pdf(pdf_file):
                         if match:
                             section_number, section_title = match.groups()[0], match.groups()[2].strip()
                             cleaned_title = clean_section_title(section_title)
-                            add_subsection(extracted_data, section_number, cleaned_title)
+                            if section_text:
+                                add_subsection(extracted_data, section_number, cleaned_title, section_text)
+                                section_text = ""
+                        else:
+                            section_text += line + "\n"
 
     return extracted_data if extracted_data else {"error": "Mundarija topilmadi"}
 
@@ -70,6 +93,7 @@ async def extract_contents_from_pdf(pdf_file):
 async def extract_text_from_docx(docx_file):
     extracted_data = {}
     found_index = False
+    section_text = ""
     doc = Document(docx_file)
 
     for paragraph in doc.paragraphs:
@@ -81,7 +105,11 @@ async def extract_text_from_docx(docx_file):
             if match:
                 section_number, section_title = match.groups()[0], match.groups()[2].strip()
                 cleaned_title = clean_section_title(section_title)
-                add_subsection(extracted_data, section_number, cleaned_title)
+                if section_text:
+                    add_subsection(extracted_data, section_number, cleaned_title, section_text)
+                    section_text = ""
+            else:
+                section_text += line + "\n"
 
     return extracted_data if extracted_data else {"error": "Mundarija topilmadi"}
 
@@ -89,6 +117,7 @@ async def extract_text_from_docx(docx_file):
 async def extract_text_from_xlsx(xlsx_file):
     extracted_data = {}
     found_index = False
+    section_text = ""
     df = pd.read_excel(xlsx_file)
 
     for index, row in df.iterrows():
@@ -102,7 +131,11 @@ async def extract_text_from_xlsx(xlsx_file):
                 if match:
                     section_number, section_title = match.groups()[0], match.groups()[2].strip()
                     cleaned_title = clean_section_title(section_title)
-                    add_subsection(extracted_data, section_number, cleaned_title)
+                    if section_text:
+                        add_subsection(extracted_data, section_number, cleaned_title, section_text)
+                        section_text = ""
+                else:
+                    section_text += cell + "\n"
 
     return extracted_data if extracted_data else {"error": "Mundarija topilmadi"}
 
@@ -116,7 +149,6 @@ async def extract_text(file, mime_type):
         return await extract_text_from_xlsx(file)
     else:
         raise ValueError("Qo'llab-quvvatlanmaydigan fayl turi")
-
 
 
 @router.message(CommandStart())
