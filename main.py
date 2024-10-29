@@ -32,16 +32,29 @@ async def extract_contents_from_pdf(pdf_file):
                 if re.match(r'^\d+\.\s', line):  # Asosiy bo‘lim (misol: "2. Bo‘lim nomi")
                     current_section = line
                     current_subsection = None
-                    extracted_data[current_section] = {"title": line, "sections": {}, "text": ""}
+                    extracted_data[current_section] = {
+                        "title": line,
+                        "sections": {},
+                        "text": "",
+                        "length": 0
+                    }
                 elif re.match(r'^\d+\.\d+\s', line):  # Pastki bo‘lim (misol: "2.1 Pastki bo‘lim nomi")
                     current_subsection = line
-                    extracted_data[current_section]["sections"][current_subsection] = {"title": line, "text": ""}
+                    extracted_data[current_section]["sections"][current_subsection] = {
+                        "title": line,
+                        "text": "",
+                        "length": 0
+                    }
                 elif current_section:
                     # Agar bo‘lim va pastki bo‘limlar mavjud bo‘lsa, matnni kiritish
                     if current_subsection:
                         extracted_data[current_section]["sections"][current_subsection]["text"] += line + "\n"
+                        extracted_data[current_section]["sections"][current_subsection]["length"] = len(
+                            extracted_data[current_section]["sections"][current_subsection]["text"]
+                        )
                     else:
                         extracted_data[current_section]["text"] += line + "\n"
+                        extracted_data[current_section]["length"] = len(extracted_data[current_section]["text"])
     return extracted_data
 
 async def extract_text_from_docx(docx_file):
@@ -56,15 +69,28 @@ async def extract_text_from_docx(docx_file):
         if re.match(r'^\d+\.\s', line):
             current_section = line
             current_subsection = None
-            extracted_data[current_section] = {"title": line, "sections": {}, "text": ""}
+            extracted_data[current_section] = {
+                "title": line,
+                "sections": {},
+                "text": "",
+                "length": 0
+            }
         elif re.match(r'^\d+\.\d+\s', line):
             current_subsection = line
-            extracted_data[current_section]["sections"][current_subsection] = {"title": line, "text": ""}
+            extracted_data[current_section]["sections"][current_subsection] = {
+                "title": line,
+                "text": "",
+                "length": 0
+            }
         elif current_section:
             if current_subsection:
                 extracted_data[current_section]["sections"][current_subsection]["text"] += line + "\n"
+                extracted_data[current_section]["sections"][current_subsection]["length"] = len(
+                    extracted_data[current_section]["sections"][current_subsection]["text"]
+                )
             else:
                 extracted_data[current_section]["text"] += line + "\n"
+                extracted_data[current_section]["length"] = len(extracted_data[current_section]["text"])
     return extracted_data
 
 async def extract_text_from_xlsx(xlsx_file):
@@ -79,15 +105,28 @@ async def extract_text_from_xlsx(xlsx_file):
             if re.match(r'^\d+\.\s', cell_text):
                 current_section = cell_text
                 current_subsection = None
-                extracted_data[current_section] = {"title": cell_text, "sections": {}, "text": ""}
+                extracted_data[current_section] = {
+                    "title": cell_text,
+                    "sections": {},
+                    "text": "",
+                    "length": 0
+                }
             elif re.match(r'^\d+\.\d+\s', cell_text):
                 current_subsection = cell_text
-                extracted_data[current_section]["sections"][current_subsection] = {"title": cell_text, "text": ""}
+                extracted_data[current_section]["sections"][current_subsection] = {
+                    "title": cell_text,
+                    "text": "",
+                    "length": 0
+                }
             elif current_section:
                 if current_subsection:
                     extracted_data[current_section]["sections"][current_subsection]["text"] += cell_text + "\n"
+                    extracted_data[current_section]["sections"][current_subsection]["length"] = len(
+                        extracted_data[current_section]["sections"][current_subsection]["text"]
+                    )
                 else:
                     extracted_data[current_section]["text"] += cell_text + "\n"
+                    extracted_data[current_section]["length"] = len(extracted_data[current_section]["text"])
     return extracted_data
 
 async def extract_text(file, mime_type):
