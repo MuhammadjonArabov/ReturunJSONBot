@@ -2,7 +2,6 @@ import asyncio
 import logging
 import os
 import json
-import re
 import pdfplumber
 import pandas as pd
 from docx import Document
@@ -11,136 +10,43 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.filters import CommandStart
 from dotenv import load_dotenv
-from pandas.io.formats import html
 
 load_dotenv()
 
 logger = logging.getLogger(__name__)
 
 router = Router()
-
 TOKEN = os.getenv("BOT_TOKEN")
 
-
-def clean_section_title(title):
-    cleaned_title = re.sub(r'\.+\s*\d*$', '', title).strip()
-    return cleaned_title
-
-
-def add_subsection(data, section_number, section_title, section_text=""):
-    section_levels = section_number.split('.')
-
-    if len(section_levels) == 1:
-        data[section_number] = {
-            "title": section_title,
-            "sections": {},
-            "text": section_text
-        }
-    elif len(section_levels) == 2:
-        parent_section = section_levels[0]
-        if parent_section not in data:
-            data[parent_section] = {
-                "title": f"Bo'lim {parent_section}",
-                "sections": {}
-            }
-        data[parent_section]["sections"][section_number] = {
-            "title": section_title,
-            "subsections": {},
-            "text": section_text
-        }
-    elif len(section_levels) == 3:
-        parent_section = section_levels[0] + '.' + section_levels[1]
-        if parent_section not in data:
-            data[parent_section] = {
-                "title": f"Bo'lim {parent_section}",
-                "sections": {}
-            }
-        data[parent_section]["sections"][section_number] = {
-            "title": section_title,
-            "subsections": {},
-            "text": section_text
-        }
-
-
 async def extract_contents_from_pdf(pdf_file):
-    extracted_data = {}
-    found_index = False
-    section_text = ""
-
+    """PDF fayldan barcha matnlarni o'qib, JSON formatga o'tkazish"""
+    extracted_text = ""
     with pdfplumber.open(pdf_file) as pdf:
-        for page_num in range(min(15, len(pdf.pages))):
-            page = pdf.pages[page_num]
-            text = page.extract_text()
-            if text:
-                lines = text.split("\n")
-                for line in lines:
-                    if "Mundarija" in line or "Содержание" in line or "Table of Contents" in line or "Оглавление" in line or "Contents" in line:
-                        found_index = True
-                    if found_index:
-                        match = re.match(r'^(\d+(\.\d+)*)(\s+.*)$', line.strip())
-                        if match:
-                            section_number, section_title = match.groups()[0], match.groups()[2].strip()
-                            cleaned_title = clean_section_title(section_title)
-                            if section_text:
-                                add_subsection(extracted_data, section_number, cleaned_title, section_text)
-                                section_text = ""
-                        else:
-                            section_text += line + "\n"
-
-    return extracted_data if extracted_data else {"error": "Mundarija topilmadi"}
+        for page in pdf.pages:
+            extracted_text += page.extract_text() + "\n"
+    return {"text": extracted_text.strip()}
 
 
 async def extract_text_from_docx(docx_file):
-    extracted_data = {}
-    found_index = False
-    section_text = ""
+    """DOCX fayldan barcha matnlarni o'qib, JSON formatga o'tkazish"""
+    extracted_text = ""
     doc = Document(docx_file)
-
     for paragraph in doc.paragraphs:
-        line = paragraph.text.strip()
-        if "Mundarija" in line or "Содержание" in line or "Table of Contents" in line or "Оглавление" in line or "Contents" in line:
-            found_index = True
-        if found_index and line:
-            match = re.match(r'^(\d+(\.\d+)*)(\s+.*)$', line)
-            if match:
-                section_number, section_title = match.groups()[0], match.groups()[2].strip()
-                cleaned_title = clean_section_title(section_title)
-                if section_text:
-                    add_subsection(extracted_data, section_number, cleaned_title, section_text)
-                    section_text = ""
-            else:
-                section_text += line + "\n"
-
-    return extracted_data if extracted_data else {"error": "Mundarija topilmadi"}
+        extracted_text += paragraph.text + "\n"
+    return {"text": extracted_text.strip()}
 
 
 async def extract_text_from_xlsx(xlsx_file):
-    extracted_data = {}
-    found_index = False
-    section_text = ""
+    """XLSX fayldan barcha matnlarni o'qib, JSON formatga o'tkazish"""
+    extracted_text = ""
     df = pd.read_excel(xlsx_file)
-
-    for index, row in df.iterrows():
-        row_data = row.tolist()
-        for cell in row_data:
-            if isinstance(cell, str) and (
-                    "Mundarija" in cell or "Содержание" in cell or "Table of Contents" in cell or "Оглавление" in cell or "Contents" in cell):
-                found_index = True
-            if found_index and isinstance(cell, str):
-                match = re.match(r'^(\d+(\.\d+)*)(\s+.*)$', cell.strip())
-                if match:
-                    section_number, section_title = match.groups()[0], match.groups()[2].strip()
-                    cleaned_title = clean_section_title(section_title)
-                    if section_text:
-                        add_subsection(extracted_data, section_number, cleaned_title, section_text)
-                        section_text = ""
-                else:
-                    section_text += cell + "\n"
-
-    return extracted_data if extracted_data else {"error": "Mundarija topilmadi"}
+    for _, row in df.iterrows():
+        extracted_text += " ".join(str(cell) for cell in row if pd.notnull(cell)) + "\n"
+    return {"text": extracted_text.strip()}
 
 
 async def extract_text(file, mime_type):
+    """Fayl turiga qarab tegishli funksiyani chaqiradi"""
     if mime_type == "application/pdf":
         return await extract_contents_from_pdf(file)
     elif mime_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
@@ -153,7 +59,7 @@ async def extract_text(file, mime_type):
 
 @router.message(CommandStart())
 async def command_start_handler(message: types.Message) -> None:
-    await message.answer(f"Hello, {html.bold(message.from_user.full_name)}!")
+    await message.answer(f"Hello, {message.from_user.full_name}!")
 
 
 @router.message(F.document)
@@ -187,7 +93,7 @@ async def handle_document_upload(message: types.Message, bot: Bot):
                 start_index = end_index
 
             if start_index >= text_length:
-                await message.reply("Barcha mundarija yuborildi.")
+                await message.reply("Barcha matn JSON formatida yuborildi.")
         except Exception as e:
             await message.reply(f"Xatolik yuz berdi: {str(e)}")
     else:
