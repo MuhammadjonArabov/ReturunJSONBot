@@ -18,116 +18,101 @@ logger = logging.getLogger(__name__)
 router = Router()
 TOKEN = os.getenv("BOT_TOKEN")
 
+
+def extract_toc_from_text(lines):
+    """Mundarijadan bo‘lim va pastki bo‘limlarni, ularning sahifa raqamlarini ajratib olish"""
+    toc = {}
+    for line in lines:
+        # Satrda .... bilan tugaydigan qismni sarlavha sifatida olish
+        if '.......' in line:
+            title = line.split('.......')[0].strip()
+            page_number = re.search(r'\d+$', line)
+            if page_number:
+                page_number = page_number.group()
+                toc[title] = int(page_number)
+    return toc
+
+
 async def extract_contents_from_pdf(pdf_file):
-    """PDF fayldan barcha ma'lumotlarni bo‘lim va pastki bo‘limlar bilan ajratib, JSON formatida qaytarish"""
+    """PDF fayldan barcha ma'lumotlarni mundarija asosida bo‘limlarga ajratib olish"""
     extracted_data = {}
-    current_section = None
-    current_subsection = None
     with pdfplumber.open(pdf_file) as pdf:
-        for page in pdf.pages:
+        toc_detected = False
+        toc = {}
+        for page_num, page in enumerate(pdf.pages, 1):
             lines = page.extract_text().split("\n")
-            for line in lines:
-                line = line.strip()
-                # Sarlavhalarni ajratish sharti
-                if re.match(r'^\d+\.\s', line):  # Asosiy bo‘lim (misol: "2. Bo‘lim nomi")
-                    current_section = line
-                    current_subsection = None
-                    extracted_data[current_section] = {
-                        "title": line,
+
+            # Agar mundarija hali topilmagan bo'lsa, uni aniqlash
+            if not toc_detected:
+                toc = extract_toc_from_text(lines)
+                if toc:
+                    toc_detected = True
+                    continue  # Mundarija topilganidan keyin, sahifani keyin o‘qish
+
+            # Mundarijadagi har bir sarlavha va pastki sarlavha bo'yicha tegishli matnni olish
+            for title, start_page in toc.items():
+                if start_page == page_num:
+                    current_section = title
+                    extracted_data[title] = {
+                        "title": title,
                         "sections": {},
                         "text": "",
                         "length": 0
                     }
-                elif re.match(r'^\d+\.\d+\s', line):  # Pastki bo‘lim (misol: "2.1 Pastki bo‘lim nomi")
-                    current_subsection = line
-                    extracted_data[current_section]["sections"][current_subsection] = {
-                        "title": line,
-                        "text": "",
-                        "length": 0
-                    }
-                elif current_section:
-                    # Agar bo‘lim va pastki bo‘limlar mavjud bo‘lsa, matnni kiritish
-                    if current_subsection:
-                        extracted_data[current_section]["sections"][current_subsection]["text"] += line + "\n"
-                        extracted_data[current_section]["sections"][current_subsection]["length"] = len(
-                            extracted_data[current_section]["sections"][current_subsection]["text"]
-                        )
-                    else:
-                        extracted_data[current_section]["text"] += line + "\n"
-                        extracted_data[current_section]["length"] = len(extracted_data[current_section]["text"])
+
+            # Sahifadagi matnni hozirgi bo‘limga kiritish
+            if current_section in extracted_data:
+                extracted_data[current_section]["text"] += page.extract_text() + "\n"
+                extracted_data[current_section]["length"] = len(extracted_data[current_section]["text"])
+
     return extracted_data
 
+
 async def extract_text_from_docx(docx_file):
-    """DOCX fayldan barcha ma'lumotlarni bo‘lim va pastki bo‘limlar bilan ajratib, JSON formatida qaytarish"""
+    """DOCX fayldan barcha ma'lumotlarni mundarija asosida ajratib olish"""
     extracted_data = {}
-    current_section = None
-    current_subsection = None
     doc = Document(docx_file)
-    for paragraph in doc.paragraphs:
-        line = paragraph.text.strip()
-        # Bo‘limlarni ajratish sharti
-        if re.match(r'^\d+\.\s', line):
-            current_section = line
-            current_subsection = None
+    lines = [para.text.strip() for para in doc.paragraphs if para.text.strip()]
+    toc = extract_toc_from_text(lines)
+    current_section = None
+
+    for line in lines:
+        if current_section in toc and line.startswith(current_section):
             extracted_data[current_section] = {
                 "title": line,
+                "text": "",
                 "sections": {},
-                "text": "",
-                "length": 0
-            }
-        elif re.match(r'^\d+\.\d+\s', line):
-            current_subsection = line
-            extracted_data[current_section]["sections"][current_subsection] = {
-                "title": line,
-                "text": "",
                 "length": 0
             }
         elif current_section:
-            if current_subsection:
-                extracted_data[current_section]["sections"][current_subsection]["text"] += line + "\n"
-                extracted_data[current_section]["sections"][current_subsection]["length"] = len(
-                    extracted_data[current_section]["sections"][current_subsection]["text"]
-                )
-            else:
-                extracted_data[current_section]["text"] += line + "\n"
-                extracted_data[current_section]["length"] = len(extracted_data[current_section]["text"])
+            extracted_data[current_section]["text"] += line + "\n"
+            extracted_data[current_section]["length"] = len(extracted_data[current_section]["text"])
+
     return extracted_data
 
+
 async def extract_text_from_xlsx(xlsx_file):
-    """XLSX fayldan barcha ma'lumotlarni bo‘lim va pastki bo‘limlar bilan ajratib, JSON formatida qaytarish"""
+    """XLSX fayldan barcha ma'lumotlarni mundarija asosida ajratib olish"""
     extracted_data = {}
-    current_section = None
-    current_subsection = None
     df = pd.read_excel(xlsx_file)
-    for _, row in df.iterrows():
-        for cell in row:
-            cell_text = str(cell).strip()
-            if re.match(r'^\d+\.\s', cell_text):
-                current_section = cell_text
-                current_subsection = None
-                extracted_data[current_section] = {
-                    "title": cell_text,
-                    "sections": {},
-                    "text": "",
-                    "length": 0
-                }
-            elif re.match(r'^\d+\.\d+\s', cell_text):
-                current_subsection = cell_text
-                extracted_data[current_section]["sections"][current_subsection] = {
-                    "title": cell_text,
-                    "text": "",
-                    "length": 0
-                }
-            elif current_section:
-                if current_subsection:
-                    extracted_data[current_section]["sections"][current_subsection]["text"] += cell_text + "\n"
-                    extracted_data[current_section]["sections"][current_subsection]["length"] = len(
-                        extracted_data[current_section]["sections"][current_subsection]["text"]
-                    )
-                else:
-                    extracted_data[current_section]["text"] += cell_text + "\n"
-                    extracted_data[current_section]["length"] = len(extracted_data[current_section]["text"])
+    lines = [str(cell).strip() for _, row in df.iterrows() for cell in row if str(cell).strip()]
+    toc = extract_toc_from_text(lines)
+    current_section = None
+
+    for line in lines:
+        if current_section in toc and line.startswith(current_section):
+            extracted_data[current_section] = {
+                "title": line,
+                "text": "",
+                "sections": {},
+                "length": 0
+            }
+        elif current_section:
+            extracted_data[current_section]["text"] += line + "\n"
+            extracted_data[current_section]["length"] = len(extracted_data[current_section]["text"])
+
     return extracted_data
+
 
 async def extract_text(file, mime_type):
     """Fayl turiga qarab tegishli funksiyani chaqiradi"""
@@ -140,9 +125,11 @@ async def extract_text(file, mime_type):
     else:
         raise ValueError("Qo'llab-quvvatlanmaydigan fayl turi")
 
+
 @router.message(CommandStart())
 async def command_start_handler(message: types.Message) -> None:
     await message.answer(f"Hello, {message.from_user.full_name}!")
+
 
 @router.message(F.document)
 async def handle_document_upload(message: types.Message, bot: Bot):
@@ -181,10 +168,12 @@ async def handle_document_upload(message: types.Message, bot: Bot):
         await message.reply(
             "Iltimos, PDF, DOCX yoki XLSX formatdagi faylni yuboring va faylni JSON formatiga aylantirib beraman.")
 
+
 @router.message(F.text)
 async def handle_text_message(message: types.Message):
     await message.reply(
         "Iltimos, PDF, DOCX yoki XLSX formatdagi faylni yuboring va faylni JSON formatiga aylantirib beraman.")
+
 
 async def main() -> None:
     logging.basicConfig(
@@ -205,6 +194,7 @@ async def main() -> None:
 
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
+
 
 if __name__ == "__main__":
     try:
